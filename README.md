@@ -38,7 +38,7 @@ public class Email
 
 As you can see those two entities belong together, hence the `List<Email>`. In order to tell the package that, you will need to add an `EntityConfiguration` for the Person. 
 
-The `MapGuidGenerator` will tell the package to generate a new `Guid` for the primary key, if none was defined. This could also be achieved by using the `MapValueFactory` method. Where as`MapOneToMany`, will tell the package that if your Person has Emails, they should be inserted as well. This also specifies that the `Person.Id` should get copied over to the `PersonId`. 
+The `MapGuidGenerator` will tell the package to generate a new `Guid` for the primary key, if none was defined. This could also be achieved by using the `MapValueFactory` method. Whereas `MapOneToMany`, will tell the package that if your Person has Emails, they should be inserted as well. This also specifies that the `Person.Id` should get copied over to the `PersonId`. 
 
 ```c#
 public class PersonConfiguration : EntityConfiguration<Person>
