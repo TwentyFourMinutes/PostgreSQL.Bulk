@@ -1,4 +1,4 @@
-﻿using Npgsql;
+using Npgsql;
 using NpgsqlTypes;
 using System;
 using System.Collections;
@@ -80,14 +80,14 @@ namespace PostgreSQL.Bulk
             _tableName = _entityType.Name + 's';
         }
 
-        public EntityBuilder<TEntity> MapTableName(string tableName)
+        public EntityBuilder<TEntity> MapToTable(string tableName)
         {
             _tableName = tableName;
 
             return this;
         }
 
-        public EntityBuilder<TEntity> MapColumnName(Expression<Func<TEntity, object>> customMapper, string columnName)
+        public EntityBuilder<TEntity> MapToColumn(Expression<Func<TEntity, object>> customMapper, string columnName)
         {
             var property = GetTargetProperty(customMapper);
 
@@ -169,6 +169,13 @@ namespace PostgreSQL.Bulk
             {
                 this.ColumnData.Add(property.Name, new ColumnData(property) { OneToManyCopier = checkForValue });
             }
+
+            return this;
+        }
+
+        public EntityBuilder<TEntity> MapGuidGenerator(Expression<Func<TEntity, Guid>> customMapper)
+        {
+            MapValueFactory(customMapper, (_, guid) => guid != Guid.Empty, _ => Guid.NewGuid());
 
             return this;
         }
