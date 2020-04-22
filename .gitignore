@@ -5,7 +5,7 @@
 
 # Custom rules
 
-PostgreSQL.Bulk.ExecutionTests/*
+PostgreSQL_Bulk_ExecutionTests/
 
 # User-specific files
 *.rsuser
@@ -352,3 +352,5 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+src/PostreSQL.Bulk/PostgreSQL.Bulk.ExecutionTests/
