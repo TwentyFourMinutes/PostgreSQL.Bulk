@@ -1,4 +1,5 @@
 ﻿using Npgsql;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -15,12 +16,16 @@ namespace PostgreSQL.Bulk
                 EntityConfigurator.BuildConfigurations();
             }
 
-            EntityDefinitionCache.TryGetEntity<TEntity>(null, out var entityDefinition);
+            if (!EntityDefinitionCache.TryGetEntity<TEntity>(null, out var entityDefinition))
+            {
+                throw new TypeArgumentException($"The type {nameof(TEntity)} does not have a valid configuration already build and no was found in the current assembly.");
+            }
 
             var copyStatement = CompileCopyStatement(entityDefinition);
 
             return PerformCopy(connection, entityDefinition, entities, copyStatement, cancellationToken);
         }
+
         private static async Task<ulong> PerformCopy<TEntity>(NpgsqlConnection connection, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, string command, CancellationToken cancellationToken) where TEntity : class
         {
             var binaryImporter = connection.BeginBinaryImport(command);
@@ -40,6 +45,43 @@ namespace PostgreSQL.Bulk
             return await CompleteAndWriteRelationValues(connection, binaryImporter, entityDefinition, entities, cancellationToken);
         }
 
+        internal static Task<ulong> BulkInsertForeignAsync<TEntity, TTarget>(this NpgsqlConnection connection, IEnumerable<TEntity> entities, Func<IEnumerable<TEntity>, IEnumerable<TTarget>> flattenedForeignColumns, CancellationToken cancellationToken = default) where TEntity : class
+                                                                                                                                                                                                                                                                                                                    where TTarget : class
+        {
+            if (!EntityDefinitionCache.TryGetEntity<TTarget>(null, out var targetDefinition))
+            {
+                throw new TypeArgumentException($"The type {nameof(TTarget)} does not have a valid configuration already build and no was found in the current assembly.");
+            }
+
+            var copyStatement = CompileCopyStatement(targetDefinition!);
+
+            return PerformForeignCopy(connection, targetDefinition, entities, flattenedForeignColumns, copyStatement, cancellationToken);
+        }
+
+        private static async Task<ulong> PerformForeignCopy<TEntity, TTarget>(NpgsqlConnection connection, EntityDefinition<TTarget> entityDefinition, IEnumerable<TEntity> entities, Func<IEnumerable<TEntity>, IEnumerable<TTarget>> flattenedForeignColumns, string command, CancellationToken cancellationToken) where TEntity : class
+                                                                                                                                                                                                                                                                                                                                                           where TTarget : class
+        {
+            var binaryImporter = connection.BeginBinaryImport(command);
+
+            var foreignColumns = new HashSet<TTarget>();
+
+            foreach (var entity in flattenedForeignColumns.Invoke(entities))
+            {
+                await binaryImporter.StartRowAsync();
+
+                for (int entityColumnIndex = 0; entityColumnIndex < entityDefinition.ColumnDefinitions.Count; entityColumnIndex++)
+                {
+                    var entityColumn = entityDefinition.ColumnDefinitions[entityColumnIndex];
+
+                    await entityColumn.WriteValues(entity, binaryImporter, cancellationToken);
+                }
+
+                foreignColumns.Add(entity);
+            }
+
+            return await CompleteAndWriteRelationValues(connection, binaryImporter, entityDefinition, foreignColumns, cancellationToken);
+        }
+
         private static async Task<ulong> CompleteAndWriteRelationValues<TEntity>(NpgsqlConnection connection, NpgsqlBinaryImporter binaryImporter, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, CancellationToken cancellationToken) where TEntity : class
         {
             ulong insertCount = await binaryImporter.CompleteAsync(cancellationToken);
@@ -50,7 +92,7 @@ namespace PostgreSQL.Bulk
             {
                 var column = entityDefinition.ForeignColumnDefinitions[columnIndex];
 
-                insertCount += await column.WriteValues(connection, entities, cancellationToken);
+                insertCount += await column.WriteValues(entities, connection, cancellationToken);
             }
 
             return insertCount;

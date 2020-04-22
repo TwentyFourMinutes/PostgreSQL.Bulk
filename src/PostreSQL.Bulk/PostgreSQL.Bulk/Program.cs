@@ -1,7 +1,6 @@
 using Npgsql;
 using NpgsqlTypes;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -43,7 +42,7 @@ namespace PostgreSQL.Bulk
 
     public class EntityBuilder<TEntity> where TEntity : class
     {
-        internal Dictionary<string, ColumnData> ColumnData { get; }
+        internal Dictionary<string, ColumnData<TEntity>> ColumnData { get; }
         internal List<string> IgnoredColumns { get; }
 
         private static readonly Type _binaryImporterType;
@@ -71,7 +70,7 @@ namespace PostgreSQL.Bulk
 
         internal EntityBuilder()
         {
-            ColumnData = new Dictionary<string, ColumnData>();
+            ColumnData = new Dictionary<string, ColumnData<TEntity>>();
             IgnoredColumns = new List<string>();
 
             _entityType = typeof(TEntity);
@@ -97,7 +96,7 @@ namespace PostgreSQL.Bulk
             }
             else
             {
-                this.ColumnData.Add(property.Name, new ColumnData(property) { ColumnName = columnName });
+                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { ColumnName = columnName });
             }
 
             return this;
@@ -113,7 +112,7 @@ namespace PostgreSQL.Bulk
             }
             else
             {
-                this.ColumnData.Add(property.Name, new ColumnData(property) { NpgsqlDbType = npgsqlDbType });
+                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { NpgsqlDbType = npgsqlDbType });
             }
 
             return this;
@@ -131,43 +130,34 @@ namespace PostgreSQL.Bulk
         public EntityBuilder<TEntity> MapOneToMany<TTarget, TKeyType>(Expression<Func<TEntity, IEnumerable<TTarget>>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
         {
             var property = GetTargetProperty(customMapper);
-            var pkProperty = GetTargetProperty(primaryKeySelector);
+            var primaryProperty = GetTargetProperty(primaryKeySelector);
             var foreignProperty = GetTargetProperty(foreignKeySelector);
 
-            var targetsProperty = Expression.Property(_entityParameter, property);
-            var primaryKeyProperty = Expression.Property(_entityParameter, pkProperty);
+            var foreignType = typeof(TTarget);
 
-            var enumerator = Expression.Variable(typeof(IEnumerator<TTarget>), "enumerator");
+            var foreignKeyParameter = Expression.Parameter(foreignType, "foreignColumn");
 
-            var getEnumerator = Expression.Call(targetsProperty, property.PropertyType.GetMethod("GetEnumerator"));
-            var disposeEnumerator = Expression.Call(enumerator, typeof(IDisposable).GetMethod("Dispose"));
+            var primaryKeyProperty = Expression.Property(_entityParameter, primaryProperty);
+            var foreignKeyProperty = Expression.Property(foreignKeyParameter, foreignProperty);
 
-            var enumeratorAssignment = Expression.Assign(enumerator, getEnumerator);
+            var assignment = Expression.Lambda<Action<TEntity, TTarget>>(Expression.Assign(foreignKeyProperty, primaryKeyProperty), _entityParameter, foreignKeyParameter);
 
-            var breakLabel = Expression.Label("break");
+            var entitiesParameter = Expression.Parameter(property.PropertyType, "entities");
+            var connectionParameter = Expression.Parameter(typeof(NpgsqlConnection), "connection");
 
-            var block = Expression.Block(variables: new ParameterExpression[] { enumerator },
-                                         enumeratorAssignment,
-                                         Expression.Loop(
-                                         Expression.IfThenElse(
-                                             Expression.IsTrue(Expression.Call(enumerator, typeof(IEnumerator).GetMethod("MoveNext"))),
-                                             Expression.Assign(
-                                                Expression.Property(Expression.Property(enumerator, "Current"), foreignProperty),
-                                                primaryKeyProperty),
-                                             Expression.Break(breakLabel)),
-                                         breakLabel),
-                                         disposeEnumerator);
+            var flatter = Expression.Call(typeof(EntityBuilder<TEntity>), "FlattenForeignColumns", new Type[] { foreignType }, entitiesParameter, customMapper, assignment);
 
-            var checkForValue = Expression.IfThen(Expression.NotEqual(targetsProperty, Expression.Constant(null)),
-                                                  block);
+            var valueWriter = Expression.Call(typeof(NpgsqlConnectionExtensions), "BulkInsertAsync", new Type[] { _entityType, foreignType }, connectionParameter, flatter, _cancellationTokenParameter);
+
+            var lambda = Expression.Lambda<Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>>(valueWriter, entitiesParameter, connectionParameter, _cancellationTokenParameter).Compile();
 
             if (this.ColumnData.TryGetValue(property.Name, out var columnData))
             {
-                columnData.OneToManyCopier = checkForValue;
+                columnData.ForeignColumnsWriter = lambda;
             }
             else
             {
-                this.ColumnData.Add(property.Name, new ColumnData(property) { OneToManyCopier = checkForValue });
+                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { ForeignColumnsWriter = lambda });
             }
 
             return this;
@@ -191,7 +181,7 @@ namespace PostgreSQL.Bulk
             }
             else
             {
-                this.ColumnData.Add(property.Name, new ColumnData(property) { ValueFactory = valueFactory });
+                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { ValueFactory = valueFactory });
             }
             return this;
         }
@@ -231,7 +221,7 @@ namespace PostgreSQL.Bulk
                 throw new TypeArgumentException("The specified type doesn't contain any public instance properties.");
 
             var columnDefinitions = new List<ColumnDefinition<TEntity>>();
-            var foreignColumnDefinitions = new List<ColumnDefinition<TEntity>>();
+            var foreignColumnDefinitions = new List<ForeignColumnDefinition<TEntity>>();
 
             foreach (var entityProperty in entityProperties)
             {
@@ -239,7 +229,7 @@ namespace PostgreSQL.Bulk
                     !Attribute.IsDefined(entityProperty, typeof(NotMappedAttribute)) &&
                     !IgnoredColumns.Contains(entityProperty.Name))
                 {
-                    Expression lambdaBody;
+                    Expression lambdaBody = null!;
 
                     var isForeignColumn = false;
 
@@ -249,9 +239,9 @@ namespace PostgreSQL.Bulk
                     {
                         var expressions = new List<Expression>();
 
-                        if (columnData.OneToManyCopier is { })
+                        if (columnData.ForeignColumnsWriter is { })
                         {
-                            expressions.Add(columnData.OneToManyCopier);
+                            foreignColumnDefinitions.Add(new ForeignColumnDefinition<TEntity>(columnData.ForeignColumnsWriter));
 
                             isForeignColumn = true;
                         }
@@ -280,23 +270,19 @@ namespace PostgreSQL.Bulk
                             {
                                 expressions.Add(Expression.Call(_binaryImporterParameter, "WriteAsync", new Type[] { entityProperty.PropertyType }, entityPropertyExpression, _cancellationTokenParameter));
                             }
-                        }
 
-                        lambdaBody = Expression.Block(expressions);
+                            lambdaBody = Expression.Block(expressions);
+                        }
                     }
                     else
                     {
                         lambdaBody = Expression.Call(_binaryImporterParameter, "WriteAsync", new Type[] { entityProperty.PropertyType }, entityPropertyExpression, _cancellationTokenParameter);
                     }
 
-                    var valueWriterLambda = Expression.Lambda<Func<TEntity, NpgsqlBinaryImporter, CancellationToken, Task>>(lambdaBody, _entityParameter, _binaryImporterParameter, _cancellationTokenParameter).Compile();
+                    if (!isForeignColumn)
+                    {
+                        var valueWriterLambda = Expression.Lambda<Func<TEntity, NpgsqlBinaryImporter, CancellationToken, Task>>(lambdaBody, _entityParameter, _binaryImporterParameter, _cancellationTokenParameter).Compile();
 
-                    if (isForeignColumn)
-                    {
-                        foreignColumnDefinitions.Add(new ColumnDefinition<TEntity>(columnData?.ColumnName ?? entityProperty.Name, valueWriterLambda));
-                    }
-                    else
-                    {
                         columnDefinitions.Add(new ColumnDefinition<TEntity>(columnData?.ColumnName ?? entityProperty.Name, valueWriterLambda));
                     }
                 }
@@ -305,10 +291,21 @@ namespace PostgreSQL.Bulk
             EntityDefinitionCache.TryAddEntity(new EntityDefinition<TEntity>(_tableName, columnDefinitions, foreignColumnDefinitions), _entityType);
         }
 
-        private
+        private static IEnumerable<TTarget> FlattenForeignColumns<TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>> foreignColumns, Action<TEntity, TTarget> valueCopier) where TTarget : class
+        {
+            foreach (var entity in entities)
+            {
+                foreach (var foreignColumn in foreignColumns.Invoke(entity))
+                {
+                    valueCopier.Invoke(entity, foreignColumn);
+
+                    yield return foreignColumn;
+                }
+            }
+        }
     }
 
-    internal class ColumnData
+    internal class ColumnData<TEntity> where TEntity : class
     {
         internal string ColumnName { get; set; }
 
@@ -317,7 +314,7 @@ namespace PostgreSQL.Bulk
         internal LambdaExpression? ValueFactory { get; set; }
         internal LambdaExpression? ValueValidator { get; set; }
 
-        internal Expression? OneToManyCopier { get; set; }
+        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>? ForeignColumnsWriter { get; set; }
 
         internal PropertyInfo ColumnInfo { get; }
 
@@ -367,13 +364,13 @@ namespace PostgreSQL.Bulk
 
         internal ReadOnlyCollection<ColumnDefinition<TEntity>> ColumnDefinitions { get; }
 
-        internal ReadOnlyCollection<ColumnDefinition<TEntity>> ForeignColumnDefinitions { get; }
+        internal ReadOnlyCollection<ForeignColumnDefinition<TEntity>> ForeignColumnDefinitions { get; }
 
-        internal EntityDefinition(string tableName, List<ColumnDefinition<TEntity>> columnDefinitions, List<ColumnDefinition<TEntity>> foreignColumnDefinitions)
+        internal EntityDefinition(string tableName, List<ColumnDefinition<TEntity>> columnDefinitions, List<ForeignColumnDefinition<TEntity>> foreignColumnDefinitions)
         {
             TableName = tableName;
             ColumnDefinitions = new ReadOnlyCollection<ColumnDefinition<TEntity>>(columnDefinitions);
-            ForeignColumnDefinitions = new ReadOnlyCollection<ColumnDefinition<TEntity>>(foreignColumnDefinitions);
+            ForeignColumnDefinitions = new ReadOnlyCollection<ForeignColumnDefinition<TEntity>>(foreignColumnDefinitions);
         }
     }
 
@@ -397,12 +394,13 @@ namespace PostgreSQL.Bulk
 
     internal class ForeignColumnDefinition<TEntity> where TEntity : class
     {
-        internal Task<long> WriteValues(NpgsqlConnection connection, IEnumerable<TEntity> entities, CancellationToken cancellationToken)
-        {
+        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>> WriteValues { get; }
 
+        internal ForeignColumnDefinition(Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>> valueWriter)
+        {
+            WriteValues = valueWriter;
         }
     }
-
 
     public abstract class EntityConfiguration<TEntity> where TEntity : class
     {
