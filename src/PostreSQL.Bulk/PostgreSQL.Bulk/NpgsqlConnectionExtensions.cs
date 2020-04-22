@@ -11,6 +11,11 @@ namespace PostgreSQL.Bulk
     {
         public static Task<ulong> BulkInsertAsync<TEntity>(this NpgsqlConnection connection, IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) where TEntity : class
         {
+            if (entities is null)
+            {
+                return Task.FromResult((ulong)0);
+            }
+
             if (!EntityConfigurator.IsBuild)
             {
                 EntityConfigurator.BuildConfigurations();

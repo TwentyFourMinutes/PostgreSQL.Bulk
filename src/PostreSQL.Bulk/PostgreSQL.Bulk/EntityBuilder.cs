@@ -1,11 +1,8 @@
-using Npgsql;
+﻿using Npgsql;
 using NpgsqlTypes;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
@@ -13,32 +10,6 @@ using System.Threading.Tasks;
 
 namespace PostgreSQL.Bulk
 {
-    class Program
-    {
-        static void Main(string[] args)
-        {
-
-
-        }
-    }
-
-    public class Person
-    {
-        public Guid Id { get; set; }
-
-        public string Name { get; set; }
-
-        public List<Email> Emails { get; set; }
-    }
-
-    public class Email
-    {
-        public Guid Id { get; set; }
-
-        public Guid PersonId { get; set; }
-
-        public string Address { get; set; }
-    }
 
     public class EntityBuilder<TEntity> where TEntity : class
     {
@@ -289,175 +260,6 @@ namespace PostgreSQL.Bulk
             }
 
             EntityDefinitionCache.TryAddEntity(new EntityDefinition<TEntity>(_tableName, columnDefinitions, foreignColumnDefinitions), _entityType);
-        }
-    }
-
-    internal static class EntityBuilderHelpers
-    {
-        public static IEnumerable<TTarget>? FlattenForeignColumns<TEntity, TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>?> foreignColumns, Action<TEntity, TTarget> valueCopier) where TEntity : class
-                                                                                                                                                                                                            where TTarget : class
-        {
-            foreach (var entity in entities)
-            {
-                var foreignColumnsResult = foreignColumns.Invoke(entity);
-
-                if (foreignColumnsResult is null)
-                    continue;
-
-                foreach (var foreignColumn in foreignColumnsResult)
-                {
-                    valueCopier.Invoke(entity, foreignColumn);
-
-                    yield return foreignColumn;
-                }
-            }
-        }
-    }
-
-    internal class ColumnData<TEntity> where TEntity : class
-    {
-        internal string ColumnName { get; set; }
-
-        internal NpgsqlDbType? NpgsqlDbType { get; set; }
-
-        internal LambdaExpression? ValueFactory { get; set; }
-        internal LambdaExpression? ValueValidator { get; set; }
-
-        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>? ForeignColumnsWriter { get; set; }
-
-        internal PropertyInfo ColumnInfo { get; }
-
-        internal ColumnData(PropertyInfo propertyInfo)
-        {
-            ColumnInfo = propertyInfo;
-            ColumnName = propertyInfo.Name;
-        }
-    }
-
-    internal static class EntityDefinitionCache
-    {
-        private static ConcurrentDictionary<Type, IEntityDefinition> _cachedEntities;
-
-        static EntityDefinitionCache()
-        {
-            _cachedEntities = new ConcurrentDictionary<Type, IEntityDefinition>();
-        }
-
-        internal static bool TryAddEntity<TEntityType>(EntityDefinition<TEntityType> entityDefinition, Type? type = null) where TEntityType : class
-        {
-            return _cachedEntities.TryAdd(type ?? typeof(TEntityType), entityDefinition);
-        }
-
-        internal static bool TryGetEntity<TEntityType>(Type? type, out EntityDefinition<TEntityType>? entityDefinition) where TEntityType : class
-        {
-            var success = _cachedEntities.TryGetValue(type ?? typeof(TEntityType), out var tempEntity);
-
-            entityDefinition = tempEntity as EntityDefinition<TEntityType>;
-
-            return success;
-        }
-
-        internal static EntityDefinition<TEntityType> GetOrAddEntity<TEntityType>(Type? type, Func<Type, EntityDefinition<TEntityType>> entityFactory) where TEntityType : class
-        {
-            return (EntityDefinition<TEntityType>)_cachedEntities.GetOrAdd(type ?? typeof(TEntityType), entityFactory);
-        }
-    }
-
-    internal interface IEntityDefinition
-    {
-    }
-
-    internal class EntityDefinition<TEntity> : IEntityDefinition where TEntity : class
-    {
-        internal string TableName { get; }
-
-        internal ReadOnlyCollection<ColumnDefinition<TEntity>> ColumnDefinitions { get; }
-
-        internal ReadOnlyCollection<ForeignColumnDefinition<TEntity>> ForeignColumnDefinitions { get; }
-
-        internal EntityDefinition(string tableName, List<ColumnDefinition<TEntity>> columnDefinitions, List<ForeignColumnDefinition<TEntity>> foreignColumnDefinitions)
-        {
-            TableName = tableName;
-            ColumnDefinitions = new ReadOnlyCollection<ColumnDefinition<TEntity>>(columnDefinitions);
-            ForeignColumnDefinitions = new ReadOnlyCollection<ForeignColumnDefinition<TEntity>>(foreignColumnDefinitions);
-        }
-    }
-
-    internal class ColumnDefinition<TEntity> where TEntity : class
-    {
-        internal string ColumnName { get; }
-
-        private readonly Func<TEntity, NpgsqlBinaryImporter, CancellationToken, Task> _valueWriter;
-
-        internal ColumnDefinition(string columnName, Func<TEntity, NpgsqlBinaryImporter, CancellationToken, Task> valueWriter)
-        {
-            ColumnName = columnName;
-            _valueWriter = valueWriter;
-        }
-
-        internal Task WriteValues(TEntity entity, NpgsqlBinaryImporter binaryImporter, CancellationToken cancellationToken)
-        {
-            return _valueWriter.Invoke(entity, binaryImporter, cancellationToken);
-        }
-    }
-
-    internal class ForeignColumnDefinition<TEntity> where TEntity : class
-    {
-        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>> WriteValues { get; }
-
-        internal ForeignColumnDefinition(Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>> valueWriter)
-        {
-            WriteValues = valueWriter;
-        }
-    }
-
-    public abstract class EntityConfiguration<TEntity> where TEntity : class
-    {
-        protected abstract void Configure(EntityBuilder<TEntity> entityBuilder);
-
-        internal void BuildConfiguration()
-        {
-            var entityBuilder = new EntityBuilder<TEntity>();
-
-            Configure(entityBuilder);
-
-            entityBuilder.Build();
-        }
-    }
-
-    public static class EntityConfigurator
-    {
-        public static bool IsBuild { get; private set; }
-
-        public static void BuildConfigurations()
-        {
-            BuildConfigurations(Assembly.GetCallingAssembly());
-
-            IsBuild = true;
-        }
-
-        public static void BuildConfigurations(params Assembly[] assemblies)
-        {
-            foreach (var assembly in assemblies)
-            {
-                BuildConfigurations(assembly);
-            }
-        }
-
-        public static void BuildConfigurations(Assembly assembly)
-        {
-            var entityConfigurationType = typeof(EntityConfiguration<>);
-
-            var entityConfigurations = assembly.GetExportedTypes().Where(x => x.IsClass && x.BaseType is { } && x.BaseType.IsGenericType && x.BaseType.GetGenericTypeDefinition() == entityConfigurationType);
-
-            foreach (var entityConfiguration in entityConfigurations)
-            {
-                var genericConfigurationInstance = Activator.CreateInstance(entityConfiguration);
-
-                var configurationMethod = entityConfiguration.GetMethod("BuildConfiguration", BindingFlags.NonPublic | BindingFlags.Instance);
-
-                configurationMethod!.Invoke(genericConfigurationInstance, null);
-            }
         }
     }
 }
