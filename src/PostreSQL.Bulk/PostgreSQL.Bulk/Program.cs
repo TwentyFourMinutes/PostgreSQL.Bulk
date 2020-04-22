@@ -142,12 +142,12 @@ namespace PostgreSQL.Bulk
 
             var assignment = Expression.Lambda<Action<TEntity, TTarget>>(Expression.Assign(foreignKeyProperty, primaryKeyProperty), _entityParameter, foreignKeyParameter);
 
-            var entitiesParameter = Expression.Parameter(property.PropertyType, "entities");
+            var entitiesParameter = Expression.Parameter(typeof(IEnumerable<TEntity>), "entities");
             var connectionParameter = Expression.Parameter(typeof(NpgsqlConnection), "connection");
 
-            var flatter = Expression.Call(typeof(EntityBuilder<TEntity>), "FlattenForeignColumns", new Type[] { foreignType }, entitiesParameter, customMapper, assignment);
+            var flatter = Expression.Call(typeof(EntityBuilderHelpers), "FlattenForeignColumns", new Type[] { _entityType, foreignType }, entitiesParameter, customMapper, assignment);
 
-            var valueWriter = Expression.Call(typeof(NpgsqlConnectionExtensions), "BulkInsertAsync", new Type[] { _entityType, foreignType }, connectionParameter, flatter, _cancellationTokenParameter);
+            var valueWriter = Expression.Call(typeof(NpgsqlConnectionExtensions), "BulkInsertAsync", new Type[] { foreignType }, connectionParameter, flatter, _cancellationTokenParameter);
 
             var lambda = Expression.Lambda<Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>>(valueWriter, entitiesParameter, connectionParameter, _cancellationTokenParameter).Compile();
 
@@ -181,7 +181,7 @@ namespace PostgreSQL.Bulk
             }
             else
             {
-                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { ValueFactory = valueFactory });
+                this.ColumnData.Add(property.Name, new ColumnData<TEntity>(property) { ValueValidator = valueValidator, ValueFactory = valueFactory });
             }
             return this;
         }
@@ -290,8 +290,12 @@ namespace PostgreSQL.Bulk
 
             EntityDefinitionCache.TryAddEntity(new EntityDefinition<TEntity>(_tableName, columnDefinitions, foreignColumnDefinitions), _entityType);
         }
+    }
 
-        private static IEnumerable<TTarget> FlattenForeignColumns<TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>> foreignColumns, Action<TEntity, TTarget> valueCopier) where TTarget : class
+    internal static class EntityBuilderHelpers
+    {
+        public static IEnumerable<TTarget> FlattenForeignColumns<TEntity, TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>> foreignColumns, Action<TEntity, TTarget> valueCopier) where TEntity : class
+                                                                                                                                                                                                            where TTarget : class
         {
             foreach (var entity in entities)
             {
@@ -439,15 +443,13 @@ namespace PostgreSQL.Bulk
         {
             var entityConfigurationType = typeof(EntityConfiguration<>);
 
-            var entityConfigurations = assembly.GetExportedTypes().Where(x => x.IsClass && x.IsSubclassOf(entityConfigurationType));
+            var entityConfigurations = assembly.GetExportedTypes().Where(x => x.IsClass && x.BaseType is { } && x.BaseType.IsGenericType && x.BaseType.GetGenericTypeDefinition() == entityConfigurationType);
 
             foreach (var entityConfiguration in entityConfigurations)
             {
-                var genericArgumentType = entityConfiguration.GetGenericArguments()[0];
+                var genericConfigurationInstance = Activator.CreateInstance(entityConfiguration);
 
-                var genericConfigurationInstance = Activator.CreateInstance(genericArgumentType);
-
-                var configurationMethod = genericArgumentType.GetMethod("BuildConfiguration", BindingFlags.NonPublic | BindingFlags.Instance);
+                var configurationMethod = entityConfiguration.GetMethod("BuildConfiguration", BindingFlags.NonPublic | BindingFlags.Instance);
 
                 configurationMethod!.Invoke(genericConfigurationInstance, null);
             }
