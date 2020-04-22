@@ -127,7 +127,7 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
-        public EntityBuilder<TEntity> MapOneToMany<TTarget, TKeyType>(Expression<Func<TEntity, IEnumerable<TTarget>>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
+        public EntityBuilder<TEntity> MapOneToMany<TTarget, TKeyType>(Expression<Func<TEntity, IEnumerable<TTarget>?>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
         {
             var property = GetTargetProperty(customMapper);
             var primaryProperty = GetTargetProperty(primaryKeySelector);
@@ -294,12 +294,17 @@ namespace PostgreSQL.Bulk
 
     internal static class EntityBuilderHelpers
     {
-        public static IEnumerable<TTarget> FlattenForeignColumns<TEntity, TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>> foreignColumns, Action<TEntity, TTarget> valueCopier) where TEntity : class
+        public static IEnumerable<TTarget>? FlattenForeignColumns<TEntity, TTarget>(IEnumerable<TEntity> entities, Func<TEntity, IEnumerable<TTarget>?> foreignColumns, Action<TEntity, TTarget> valueCopier) where TEntity : class
                                                                                                                                                                                                             where TTarget : class
         {
             foreach (var entity in entities)
             {
-                foreach (var foreignColumn in foreignColumns.Invoke(entity))
+                var foreignColumnsResult = foreignColumns.Invoke(entity);
+
+                if (foreignColumnsResult is null)
+                    continue;
+
+                foreach (var foreignColumn in foreignColumnsResult)
                 {
                     valueCopier.Invoke(entity, foreignColumn);
 
