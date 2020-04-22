@@ -49,6 +49,14 @@ public class PersonConfiguration : EntityConfiguration<Person>
             		 .MapOneToMany(x => x.Emails, x => x.Id, x => x.PersonId);
     }
 }
+
+public class EmailConfiguration : EntityConfiguration<Email>
+{
+    protected override void Configure(EntityBuilder<Email> entityBuilder)
+    {
+        entityBuilder.MapGuidGenerator(x => x.Id);
+    }
+}
 ```
 
 Now at the start of our application we would want to call `EntityConfigurator.BuildConfigurations()`, in order to build the configuration we just defined.  For the last step we just need to get some Persons ready and open up a Npgsql connection.
