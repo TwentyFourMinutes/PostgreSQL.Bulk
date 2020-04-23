@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Reflection;
 
@@ -37,6 +37,12 @@ namespace PostgreSQL.Bulk
 
                 configurationMethod!.Invoke(genericConfigurationInstance, null);
             }
+        }
+
+        public static void BuildConfiguration<TConfiguration, TConfigurationType>() where TConfiguration : EntityConfiguration<TConfigurationType>, new()
+                                                                                    where TConfigurationType : class
+        {
+            new TConfiguration().BuildConfiguration();
         }
     }
 }
