@@ -10,7 +10,13 @@ This packages aims to provide near native speed of calling the `BinaryImporter` 
 
 ## Installation
 
-Currently the package is still at the development of its core components and therefor not yet ready for a stable release. However once ready, it will be distributed via NuGet.
+You can either get this package by downloading it from the NuGet Package Manager built in Visual Studio or from the official [nuget.org](https://www.nuget.org/packages/PostgreSQL.Bulk) website. 
+
+Also you can install it via the **P**ackage **M**anager **C**onsole:
+
+```
+PM> Install-Package PostgreSQL.Bulk
+```
 
 ## Example
 
@@ -99,6 +105,7 @@ The Cache for a Model will be build under two specific circumstances:
   - `NotMapped`
   - `Table`
   - `Column`
+- Your Configurations should always represent the tree from top to bottom, that's the reason to why there is no `MapManyToOne` method.
 
 ### Contact information
 
