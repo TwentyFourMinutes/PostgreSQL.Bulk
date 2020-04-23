@@ -46,8 +46,6 @@ namespace PostgreSQL.Bulk
 
             _entityType = typeof(TEntity);
             _entityParameter = Expression.Parameter(_entityType, "entity");
-
-            _tableName = _entityType.Name + 's';
         }
 
         public EntityBuilder<TEntity> MapToTable(string tableName)
@@ -204,6 +202,20 @@ namespace PostgreSQL.Bulk
             if (entityProperties.Length == 0)
                 throw new TypeArgumentException("The specified type doesn't contain any public instance properties.");
 
+            if (string.IsNullOrEmpty(_tableName))
+            {
+                var tableAttribute = _entityType.GetCustomAttribute<TableAttribute>();
+
+                if (tableAttribute is { })
+                {
+                    _tableName = tableAttribute.Name;
+                }
+                else
+                {
+                    _tableName = _entityType.Name + 's';
+                }
+            }
+
             var columnDefinitions = new List<ColumnDefinition<TEntity>>();
             var foreignColumnDefinitions = new List<ForeignColumnDefinition<TEntity>>();
 
@@ -267,7 +279,27 @@ namespace PostgreSQL.Bulk
                     {
                         var valueWriterLambda = Expression.Lambda<Func<TEntity, NpgsqlBinaryImporter, CancellationToken, Task>>(lambdaBody, _entityParameter, _binaryImporterParameter, _cancellationTokenParameter).Compile();
 
-                        columnDefinitions.Add(new ColumnDefinition<TEntity>(columnData?.ColumnName ?? entityProperty.Name, valueWriterLambda));
+                        string columnName;
+
+                        if (columnData is null || string.IsNullOrEmpty(columnData.ColumnName))
+                        {
+                            var columnAttribute = entityProperty.GetCustomAttribute<ColumnAttribute>();
+
+                            if (columnAttribute is { })
+                            {
+                                columnName = columnAttribute.Name;
+                            }
+                            else
+                            {
+                                columnName = entityProperty.Name;
+                            }
+                        }
+                        else
+                        {
+                            columnName = columnData.ColumnName;
+                        }
+
+                        columnDefinitions.Add(new ColumnDefinition<TEntity>(columnName, valueWriterLambda));
                     }
                 }
             }
