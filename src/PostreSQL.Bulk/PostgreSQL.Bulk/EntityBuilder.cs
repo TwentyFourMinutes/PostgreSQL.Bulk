@@ -101,6 +101,19 @@ namespace PostgreSQL.Bulk
         public EntityBuilder<TEntity> MapOneToMany<TTarget, TKeyType>(Expression<Func<TEntity, IEnumerable<TTarget>?>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
         {
             var property = GetTargetProperty(customMapper);
+
+            return MapRelation(property, customMapper, primaryKeySelector, foreignKeySelector);
+        }
+
+        public EntityBuilder<TEntity> MapOneToOne<TTarget, TKeyType>(Expression<Func<TEntity, TTarget?>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
+        {
+            var property = GetTargetProperty(customMapper);
+
+            return MapRelation(property, customMapper, primaryKeySelector, foreignKeySelector);
+        }
+
+        private EntityBuilder<TEntity> MapRelation<TTarget, TKeyType>(PropertyInfo property, Expression customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
+        {
             var primaryProperty = GetTargetProperty(primaryKeySelector);
             var foreignProperty = GetTargetProperty(foreignKeySelector);
 
