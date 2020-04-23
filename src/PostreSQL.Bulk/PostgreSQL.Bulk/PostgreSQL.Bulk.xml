@@ -1,0 +1,168 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>PostgreSQL.Bulk</name>
+    </assembly>
+    <members>
+        <member name="T:PostgreSQL.Bulk.EntityBuilder`1">
+            <summary>
+            Provides access to methods which allow the configuration of each property inside an entity. Also allows for the configuration of the entity itself.
+            </summary>
+            <typeparam name="TEntity">The type of the entity which should be configured.</typeparam>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapToTable(System.String)">
+            <summary>
+            Maps the Entity to a specific table by its name.
+            </summary>
+            <param name="tableName">The table name to which the entity should map.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>
+            If you don't call this method, it will be assumed that the name of your table is the same as the name of the entity suffixed by a 's'.
+            You can also configure this, by applying the <see cref="T:System.ComponentModel.DataAnnotations.Schema.TableAttribute"/> to your entity.
+            </remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapToColumn(System.Linq.Expressions.Expression{System.Func{`0,System.Object}},System.String)">
+            <summary>
+            Maps the specified property to the specific column by its name.
+            </summary>
+            <param name="customMapper">A lambda expression representing the property on the current type.</param>
+            <param name="columnName">The column name to which the property should map.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>
+            If you don't call this method, it will be assumed that the name of the column for this property is the same as the name of the property itself.
+            You can also configure this, by applying the <see cref="T:System.ComponentModel.DataAnnotations.Schema.ColumnAttribute"/> to your property.
+            </remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapType(System.Linq.Expressions.Expression{System.Func{`0,System.Object}},NpgsqlTypes.NpgsqlDbType)">
+            <summary>
+            Maps the specified property to a specific column type.
+            </summary>
+            <param name="customMapper">A lambda expression representing the property on the current type.</param>
+            <param name="npgsqlDbType">The column type of the property.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>
+            If you don't call this method, Npgsql will assume the type of the object on its own.
+            </remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.Ignore(System.Linq.Expressions.Expression{System.Func{`0,System.Object}})">
+            <summary>
+            Ignores the specified property, by default all public properties which have a getter and a setter will be included.
+            </summary>
+            <param name="customMapper">A lambda expression representing the property on the current type.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>
+            You can also configure this, by applying the <see cref="T:System.ComponentModel.DataAnnotations.Schema.NotMappedAttribute"/> to your property.
+            </remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapOneToMany``2(System.Linq.Expressions.Expression{System.Func{`0,System.Collections.Generic.IEnumerable{``0}}},System.Linq.Expressions.Expression{System.Func{`0,``1}},System.Linq.Expressions.Expression{System.Func{``0,``1}})">
+            <summary>
+            Maps a one to many relation between two classes. This method will automatically populates the foreign key/>.
+            </summary>
+            <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+            <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
+            <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>This method is compatible with <see cref="M:PostgreSQL.Bulk.EntityBuilder`1.MapValueFactory``1(System.Linq.Expressions.Expression{System.Func{`0,``0}},System.Linq.Expressions.Expression{System.Func{`0,``0,System.Boolean}},System.Linq.Expressions.Expression{System.Func{`0,``0}})"/> and <see cref="M:PostgreSQL.Bulk.EntityBuilder`1.MapGuidGenerator(System.Linq.Expressions.Expression{System.Func{`0,System.Guid}})"/>.</remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapOneToOne``2(System.Linq.Expressions.Expression{System.Func{`0,``0}},System.Linq.Expressions.Expression{System.Func{`0,``1}},System.Linq.Expressions.Expression{System.Func{``0,``1}})">
+            <summary>
+            Maps a one to one relation between two classes. This method will automatically populates the foreign key/>.
+            </summary>
+            <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+            <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
+            <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+            <remarks>This method is compatible with <see cref="M:PostgreSQL.Bulk.EntityBuilder`1.MapValueFactory``1(System.Linq.Expressions.Expression{System.Func{`0,``0}},System.Linq.Expressions.Expression{System.Func{`0,``0,System.Boolean}},System.Linq.Expressions.Expression{System.Func{`0,``0}})"/> and <see cref="M:PostgreSQL.Bulk.EntityBuilder`1.MapGuidGenerator(System.Linq.Expressions.Expression{System.Func{`0,System.Guid}})"/>.</remarks>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapGuidGenerator(System.Linq.Expressions.Expression{System.Func{`0,System.Guid}})">
+            <summary>
+            Maps a <see cref="T:System.Guid"/> generator to a property, which will be called before an instance with this column gets inserted. The factory will only be called, if the current value of the <see cref="T:System.Guid"/> equals to <see cref="F:System.Guid.Empty"/>.
+            </summary>
+            <param name="customMapper">A lambda expression representing the property on the current type.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapValueFactory``1(System.Linq.Expressions.Expression{System.Func{`0,``0}},System.Linq.Expressions.Expression{System.Func{`0,``0,System.Boolean}},System.Linq.Expressions.Expression{System.Func{`0,``0}})">
+            <summary>
+            Maps a value factory to a property, which will be called before an instance with this column gets inserted.
+            </summary>
+            <param name="customMapper">A lambda expression representing the property on the current type.</param>
+            <param name="valueValidator">A lambda expression returning a <see cref="T:System.Boolean"/>, whether or not the state of the type property is valid. If this lambda returns <see langword="false"/>, the <paramref name="valueFactory"/> will be called.</param>
+            <param name="valueFactory">A lambda expression returning a value, which should be used for this property if the current value is not valid.</param>
+            <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>
+        </member>
+        <member name="T:PostgreSQL.Bulk.EntityConfiguration`1">
+            <summary>
+            Used to configure a specific entity and its properties.
+            </summary>
+            <typeparam name="TEntity">The type of the entity to be configured.</typeparam>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityConfiguration`1.Configure(PostgreSQL.Bulk.EntityBuilder{`0})">
+            <summary>
+            Configures the actual entity and its properties.
+            </summary>
+            <param name="entityBuilder">The builder used to apply the configurations.</param>
+        </member>
+        <member name="T:PostgreSQL.Bulk.EntityConfigurator">
+            <summary>
+            Provides access to methods which build the individual <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/>.
+            </summary>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityConfigurator.BuildConfigurations">
+            <summary>
+            Builds all <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/>, which are declared in the calling assembly.
+            </summary>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityConfigurator.BuildConfigurations(System.Reflection.Assembly[])">
+            <summary>
+            Builds all <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> in the passed assemblies.
+            </summary>
+            <param name="assemblies">The assemblies which contain the configurations.</param>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityConfigurator.BuildConfigurations(System.Reflection.Assembly)">
+            <summary>
+            Builds all <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> in the passed assembly.
+            </summary>
+            <param name="assembly">The assembly which contains the configurations.</param>
+        </member>
+        <member name="M:PostgreSQL.Bulk.EntityConfigurator.BuildConfiguration``2">
+            <summary>
+            Builds a specific <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/>.
+            </summary>
+            <typeparam name="TConfiguration">The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which should be build.</typeparam>
+            <typeparam name="TConfigurationType">The type which the <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> builds.</typeparam>
+        </member>
+        <member name="T:PostgreSQL.Bulk.NpgsqlConnectionExtensions">
+            <summary>
+            Provides extension methods to the <see cref="T:Npgsql.NpgsqlConnection"/> class, which help with bulk insert.
+            </summary>
+        </member>
+        <member name="M:PostgreSQL.Bulk.NpgsqlConnectionExtensions.BulkInsertAsync``1(Npgsql.NpgsqlConnection,System.Collections.Generic.IEnumerable{``0},System.Threading.CancellationToken)">
+            <summary>
+            Bulk inserts a collection of entities and its foreign columns, using the PostgreSQL COPY command.
+            </summary>
+            <typeparam name="TEntity">The type of the top most collection of entities.</typeparam>
+            <param name="connection">A open connection to your database, which is not already in a COPY state.</param>
+            <param name="entities">A collection containing all the entities.</param>
+            <param name="cancellationToken">A CancellationToken instance which can cancel the current operation.</param>
+            <returns>The Task object which represents the current operation and the amount of inserted rows.</returns>
+            <exception cref="T:PostgreSQL.Bulk.TypeArgumentException">Thrown when no matching build configuration for the passed <typeparamref name="TEntity"/> could be found.</exception>
+        </member>
+        <member name="T:PostgreSQL.Bulk.TypeArgumentException">
+            <summary>
+            Represents an error which occur when an invalid type argument gets passed to a generic method.
+            </summary>
+        </member>
+        <member name="M:PostgreSQL.Bulk.TypeArgumentException.#ctor">
+            <inheritdoc/>
+        </member>
+        <member name="M:PostgreSQL.Bulk.TypeArgumentException.#ctor(System.String)">
+            <inheritdoc/>
+        </member>
+        <member name="M:PostgreSQL.Bulk.TypeArgumentException.#ctor(System.String,System.Exception)">
+            <inheritdoc/>
+        </member>
+        <member name="M:PostgreSQL.Bulk.TypeArgumentException.#ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)">
+            <inheritdoc/>
+        </member>
+    </members>
+</doc>

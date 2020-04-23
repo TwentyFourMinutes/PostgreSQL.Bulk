@@ -1,5 +1,4 @@
 ﻿using Npgsql;
-using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -7,13 +6,25 @@ using System.Threading.Tasks;
 
 namespace PostgreSQL.Bulk
 {
+    /// <summary>
+    /// Provides extension methods to the <see cref="NpgsqlConnection"/> class, which help with bulk insert.
+    /// </summary>
     public static class NpgsqlConnectionExtensions
     {
-        public static Task<ulong> BulkInsertAsync<TEntity>(this NpgsqlConnection connection, IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) where TEntity : class
+        /// <summary>
+        /// Bulk inserts a collection of entities and its foreign columns, using the PostgreSQL COPY command.
+        /// </summary>
+        /// <typeparam name="TEntity">The type of the top most collection of entities.</typeparam>
+        /// <param name="connection">A open connection to your database, which is not already in a COPY state.</param>
+        /// <param name="entities">A collection containing all the entities.</param>
+        /// <param name="cancellationToken">A CancellationToken instance which can cancel the current operation.</param>
+        /// <returns>The Task object which represents the current operation and the amount of inserted rows.</returns>
+        /// <exception cref="TypeArgumentException">Thrown when no matching build configuration for the passed <typeparamref name="TEntity"/> could be found.</exception>
+        public static ValueTask<ulong> BulkInsertAsync<TEntity>(this NpgsqlConnection connection, IEnumerable<TEntity> entities, CancellationToken cancellationToken = default) where TEntity : class
         {
             if (entities is null)
             {
-                return Task.FromResult((ulong)0);
+                return new ValueTask<ulong>(Task.FromResult((ulong)0));
             }
 
             if (!EntityConfigurator.IsBuild)
@@ -23,12 +34,12 @@ namespace PostgreSQL.Bulk
 
             if (!EntityDefinitionCache.TryGetEntity<TEntity>(null, out var entityDefinition))
             {
-                throw new TypeArgumentException($"The type {nameof(TEntity)} does not have a valid configuration already build and no was found in the current assembly.");
+                throw new TypeArgumentException($"The type {nameof(TEntity)} does not have a valid configuration already build and no was found in the current assembly. Try calling EntityConfigurator.BuildConfiguration explicitly at the start of your application.");
             }
 
-            var copyStatement = CompileCopyStatement(entityDefinition);
+            var copyStatement = CompileCopyStatement(entityDefinition!);
 
-            return PerformCopy(connection, entityDefinition, entities, copyStatement, cancellationToken);
+            return new ValueTask<ulong>(PerformCopy(connection, entityDefinition!, entities, copyStatement, cancellationToken));
         }
 
         private static async Task<ulong> PerformCopy<TEntity>(NpgsqlConnection connection, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, string command, CancellationToken cancellationToken) where TEntity : class

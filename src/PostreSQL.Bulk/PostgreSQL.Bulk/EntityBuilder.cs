@@ -10,34 +10,27 @@ using System.Threading.Tasks;
 
 namespace PostgreSQL.Bulk
 {
-
+    /// <summary>
+    /// Provides access to methods which allow the configuration of each property inside an entity. Also allows for the configuration of the entity itself.
+    /// </summary>
+    /// <typeparam name="TEntity">The type of the entity which should be configured.</typeparam>
     public class EntityBuilder<TEntity> where TEntity : class
     {
         internal Dictionary<string, ColumnData<TEntity>> ColumnData { get; }
         internal List<string> IgnoredColumns { get; }
 
-        private static readonly Type _binaryImporterType;
-        private static readonly Type _cancellationTokenType;
-        private static readonly Type _npgsqlDbType;
+        private readonly Type _binaryImporterType;
+        private readonly Type _cancellationTokenType;
+        private readonly Type _npgsqlDbType;
 
         private readonly Type _entityType;
 
-        private static readonly ParameterExpression _binaryImporterParameter;
-        private static readonly ParameterExpression _cancellationTokenParameter;
+        private readonly ParameterExpression _binaryImporterParameter;
+        private readonly ParameterExpression _cancellationTokenParameter;
 
         private readonly ParameterExpression _entityParameter;
 
         private string _tableName;
-
-        static EntityBuilder()
-        {
-            _binaryImporterType = typeof(NpgsqlBinaryImporter);
-            _cancellationTokenType = typeof(CancellationToken);
-            _npgsqlDbType = typeof(NpgsqlDbType);
-
-            _binaryImporterParameter = Expression.Parameter(_binaryImporterType, "binaryImporter");
-            _cancellationTokenParameter = Expression.Parameter(_cancellationTokenType, "cancellationToken");
-        }
 
         internal EntityBuilder()
         {
@@ -46,8 +39,25 @@ namespace PostgreSQL.Bulk
 
             _entityType = typeof(TEntity);
             _entityParameter = Expression.Parameter(_entityType, "entity");
+            _tableName = string.Empty;
+
+            _binaryImporterType = typeof(NpgsqlBinaryImporter);
+            _cancellationTokenType = typeof(CancellationToken);
+            _npgsqlDbType = typeof(NpgsqlDbType);
+
+            _binaryImporterParameter = Expression.Parameter(_binaryImporterType, "binaryImporter");
+            _cancellationTokenParameter = Expression.Parameter(_cancellationTokenType, "cancellationToken");
         }
 
+        /// <summary>
+        /// Maps the Entity to a specific table by its name.
+        /// </summary>
+        /// <param name="tableName">The table name to which the entity should map.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>
+        /// If you don't call this method, it will be assumed that the name of your table is the same as the name of the entity suffixed by a 's'.
+        /// You can also configure this, by applying the <see cref="TableAttribute"/> to your entity.
+        /// </remarks>
         public EntityBuilder<TEntity> MapToTable(string tableName)
         {
             _tableName = tableName;
@@ -55,6 +65,16 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
+        /// <summary>
+        /// Maps the specified property to the specific column by its name.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the property on the current type.</param>
+        /// <param name="columnName">The column name to which the property should map.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>
+        /// If you don't call this method, it will be assumed that the name of the column for this property is the same as the name of the property itself.
+        /// You can also configure this, by applying the <see cref="ColumnAttribute"/> to your property.
+        /// </remarks>
         public EntityBuilder<TEntity> MapToColumn(Expression<Func<TEntity, object>> customMapper, string columnName)
         {
             var property = GetTargetProperty(customMapper);
@@ -71,6 +91,15 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
+        /// <summary>
+        /// Maps the specified property to a specific column type.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the property on the current type.</param>
+        /// <param name="npgsqlDbType">The column type of the property.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>
+        /// If you don't call this method, Npgsql will assume the type of the object on its own.
+        /// </remarks>
         public EntityBuilder<TEntity> MapType(Expression<Func<TEntity, object>> customMapper, NpgsqlDbType npgsqlDbType)
         {
             var property = GetTargetProperty(customMapper);
@@ -87,7 +116,15 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
-        public EntityBuilder<TEntity> MapIgnore(Expression<Func<TEntity, object>> customMapper)
+        /// <summary>
+        /// Ignores the specified property, by default all public properties which have a getter and a setter will be included.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the property on the current type.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>
+        /// You can also configure this, by applying the <see cref="NotMappedAttribute"/> to your property.
+        /// </remarks>
+        public EntityBuilder<TEntity> Ignore(Expression<Func<TEntity, object>> customMapper)
         {
             var property = GetTargetProperty(customMapper);
 
@@ -96,6 +133,14 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
+        /// <summary>
+        /// Maps a one to many relation between two classes. This method will automatically populates the foreign key/>.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+        /// <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
+        /// <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>This method is compatible with <see cref="MapValueFactory{TTarget}(Expression{Func{TEntity, TTarget}}, Expression{Func{TEntity, TTarget, bool}}, Expression{Func{TEntity, TTarget}})"/> and <see cref="MapGuidGenerator(Expression{Func{TEntity, Guid}})"/>.</remarks>
         public EntityBuilder<TEntity> MapOneToMany<TTarget, TKeyType>(Expression<Func<TEntity, IEnumerable<TTarget>?>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
         {
             var property = GetTargetProperty(customMapper);
@@ -103,6 +148,14 @@ namespace PostgreSQL.Bulk
             return MapRelation(property, customMapper, primaryKeySelector, foreignKeySelector);
         }
 
+        /// <summary>
+        /// Maps a one to one relation between two classes. This method will automatically populates the foreign key/>.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+        /// <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
+        /// <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
+        /// <remarks>This method is compatible with <see cref="MapValueFactory{TTarget}(Expression{Func{TEntity, TTarget}}, Expression{Func{TEntity, TTarget, bool}}, Expression{Func{TEntity, TTarget}})"/> and <see cref="MapGuidGenerator(Expression{Func{TEntity, Guid}})"/>.</remarks>
         public EntityBuilder<TEntity> MapOneToOne<TTarget, TKeyType>(Expression<Func<TEntity, TTarget?>> customMapper, Expression<Func<TEntity, TKeyType>> primaryKeySelector, Expression<Func<TTarget, TKeyType>> foreignKeySelector) where TTarget : class
         {
             var property = GetTargetProperty(customMapper);
@@ -145,6 +198,11 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
+        /// <summary>
+        /// Maps a <see cref="Guid"/> generator to a property, which will be called before an instance with this column gets inserted. The factory will only be called, if the current value of the <see cref="Guid"/> equals to <see cref="Guid.Empty"/>.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the property on the current type.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
         public EntityBuilder<TEntity> MapGuidGenerator(Expression<Func<TEntity, Guid>> customMapper)
         {
             MapValueFactory(customMapper, (_, guid) => guid != Guid.Empty, _ => Guid.NewGuid());
@@ -152,6 +210,13 @@ namespace PostgreSQL.Bulk
             return this;
         }
 
+        /// <summary>
+        /// Maps a value factory to a property, which will be called before an instance with this column gets inserted.
+        /// </summary>
+        /// <param name="customMapper">A lambda expression representing the property on the current type.</param>
+        /// <param name="valueValidator">A lambda expression returning a <see cref="bool"/>, whether or not the state of the type property is valid. If this lambda returns <see langword="false"/>, the <paramref name="valueFactory"/> will be called.</param>
+        /// <param name="valueFactory">A lambda expression returning a value, which should be used for this property if the current value is not valid.</param>
+        /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
         public EntityBuilder<TEntity> MapValueFactory<TTarget>(Expression<Func<TEntity, TTarget>> customMapper, Expression<Func<TEntity, TTarget, bool>> valueValidator, Expression<Func<TEntity, TTarget>> valueFactory)
         {
             var property = GetTargetProperty(customMapper);
@@ -186,7 +251,7 @@ namespace PostgreSQL.Bulk
                     customMapper.ToString()));
 
             if (targetType != propInfo.ReflectedType &&
-                !targetType.IsSubclassOf(propInfo!.ReflectedType))
+                !targetType.IsSubclassOf(propInfo.ReflectedType!))
                 throw new ArgumentException(string.Format(
                     "Expression '{0}' refers to a property that is not from type {1}.",
                     customMapper.ToString(),
