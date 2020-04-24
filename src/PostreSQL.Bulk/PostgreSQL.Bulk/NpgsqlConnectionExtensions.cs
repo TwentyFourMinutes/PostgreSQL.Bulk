@@ -39,10 +39,10 @@ namespace PostgreSQL.Bulk
 
             var copyStatement = CompileCopyStatement(entityDefinition!);
 
-            return new ValueTask<ulong>(PerformCopy(connection, entityDefinition!, entities, copyStatement, cancellationToken));
+            return PerformCopy(connection, entityDefinition!, entities, copyStatement, cancellationToken);
         }
 
-        private static async Task<ulong> PerformCopy<TEntity>(NpgsqlConnection connection, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, string command, CancellationToken cancellationToken) where TEntity : class
+        private static async ValueTask<ulong> PerformCopy<TEntity>(NpgsqlConnection connection, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, string command, CancellationToken cancellationToken) where TEntity : class
         {
             var binaryImporter = connection.BeginBinaryImport(command);
 
@@ -61,7 +61,7 @@ namespace PostgreSQL.Bulk
             return await CompleteAndWriteRelationValues(connection, binaryImporter, entityDefinition, entities, cancellationToken);
         }
 
-        private static async Task<ulong> CompleteAndWriteRelationValues<TEntity>(NpgsqlConnection connection, NpgsqlBinaryImporter binaryImporter, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, CancellationToken cancellationToken) where TEntity : class
+        private static async ValueTask<ulong> CompleteAndWriteRelationValues<TEntity>(NpgsqlConnection connection, NpgsqlBinaryImporter binaryImporter, EntityDefinition<TEntity> entityDefinition, IEnumerable<TEntity> entities, CancellationToken cancellationToken) where TEntity : class
         {
             ulong insertCount = await binaryImporter.CompleteAsync(cancellationToken);
 

@@ -19,7 +19,7 @@ namespace PostgreSQL.Bulk
         internal LambdaExpression? ValueFactory { get; set; }
         internal LambdaExpression? ValueValidator { get; set; }
 
-        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>? ForeignColumnsWriter { get; set; }
+        internal Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, ValueTask<ulong>>? ForeignColumnsWriter { get; set; }
 
         internal PropertyInfo ColumnInfo { get; }
 

@@ -56,7 +56,7 @@
         </member>
         <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapOneToMany``2(System.Linq.Expressions.Expression{System.Func{`0,System.Collections.Generic.IEnumerable{``0}}},System.Linq.Expressions.Expression{System.Func{`0,``1}},System.Linq.Expressions.Expression{System.Func{``0,``1}})">
             <summary>
-            Maps a one to many relation between two classes. This method will automatically populates the foreign key/>.
+            Maps a one to many relation between two classes. This method will automatically populates the foreign key.
             </summary>
             <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
             <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
@@ -66,9 +66,9 @@
         </member>
         <member name="M:PostgreSQL.Bulk.EntityBuilder`1.MapOneToOne``2(System.Linq.Expressions.Expression{System.Func{`0,``0}},System.Linq.Expressions.Expression{System.Func{`0,``1}},System.Linq.Expressions.Expression{System.Func{``0,``1}})">
             <summary>
-            Maps a one to one relation between two classes. This method will automatically populates the foreign key/>.
+            Maps a one to one relation between two classes. This method will automatically populates the foreign key.
             </summary>
-            <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+            <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Author).</param>
             <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
             <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
             <returns>The <see cref="T:PostgreSQL.Bulk.EntityConfiguration`1"/> which allows for further configuration of the entity.</returns>

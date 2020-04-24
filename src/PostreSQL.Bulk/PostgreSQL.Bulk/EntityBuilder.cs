@@ -134,7 +134,7 @@ namespace PostgreSQL.Bulk
         }
 
         /// <summary>
-        /// Maps a one to many relation between two classes. This method will automatically populates the foreign key/>.
+        /// Maps a one to many relation between two classes. This method will automatically populates the foreign key.
         /// </summary>
         /// <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
         /// <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
@@ -149,9 +149,9 @@ namespace PostgreSQL.Bulk
         }
 
         /// <summary>
-        /// Maps a one to one relation between two classes. This method will automatically populates the foreign key/>.
+        /// Maps a one to one relation between two classes. This method will automatically populates the foreign key.
         /// </summary>
-        /// <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Posts).</param>
+        /// <param name="customMapper">A lambda expression representing the collection navigation property on this entity type that represents the relationship (blog => blog.Author).</param>
         /// <param name="primaryKeySelector">A lambda expression representing the primary key of the current type. The value of this property will be used to populate the foreign key.</param>
         /// <param name="foreignKeySelector">A lambda expression representing the foreign key of the navigation type. This property will be populated by the <paramref name="primaryKeySelector"/>.</param>
         /// <returns>The <see cref="EntityConfiguration{TEntity}"/> which allows for further configuration of the entity.</returns>
@@ -184,7 +184,7 @@ namespace PostgreSQL.Bulk
 
             var valueWriter = Expression.Call(typeof(NpgsqlConnectionExtensions), "BulkInsertAsync", new Type[] { foreignType }, connectionParameter, flatter, _cancellationTokenParameter);
 
-            var lambda = Expression.Lambda<Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, Task<ulong>>>(valueWriter, entitiesParameter, connectionParameter, _cancellationTokenParameter).Compile();
+            var lambda = Expression.Lambda<Func<IEnumerable<TEntity>, NpgsqlConnection, CancellationToken, ValueTask<ulong>>>(valueWriter, entitiesParameter, connectionParameter, _cancellationTokenParameter).Compile();
 
             if (this.ColumnData.TryGetValue(property.Name, out var columnData))
             {
